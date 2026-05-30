@@ -1,7 +1,3 @@
-# EquiMind - Zero Trust Risk Engine
-
-**GHR HACK 2.0 Submission**
-
 ## Problem Statement
 
 Autonomous Zero-Trust Network Architecture with Dynamic Risk Scoring - Design a cybersecurity system implementing a Zero-Trust architecture where every user, device, and application is continuously verified using dynamic risk scoring instead of static authentication rules.
