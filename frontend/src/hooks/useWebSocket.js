@@ -20,29 +20,29 @@ export function useWebSocket() {
         // Fetch entities
         const entities = await apiService.getEntities()
         setEntities(entities)
-        console.log(`✅ Loaded ${entities.length} entities`)
+        console.log(`Loaded ${entities.length} entities`)
 
         // Fetch status
         const status = await apiService.getStatus()
         setStatus(status)
-        console.log(`✅ System status: ${status.status}`)
+        console.log(`System status: ${status.status}`)
 
         // Fetch model health
         try {
           const modelHealth = await apiService.getModelHealth()
           setModelHealth(modelHealth)
-          console.log(`✅ Model health loaded`)
+          console.log(`Model health loaded`)
         } catch (error) {
-          console.warn('⚠️ Model health not available:', error.message)
+          console.warn('WARNING: Model health not available:', error.message)
         }
 
         // Fetch simulation stats
         try {
           const simStats = await apiService.getSimulationStats()
           setSimulationStats(simStats)
-          console.log(`✅ Simulation stats: ${simStats.total_samples} samples`)
+          console.log(`Simulation stats: ${simStats.total_samples} samples`)
         } catch (error) {
-          console.warn('⚠️ Simulation stats not available:', error.message)
+          console.warn('WARNING: Simulation stats not available:', error.message)
         }
 
       } catch (error) {
@@ -78,7 +78,7 @@ export function useWebSocket() {
       ws.current = new WebSocket(wsUrl)
 
       ws.current.onopen = () => {
-        console.log('✅ WebSocket connected - receiving live events')
+        console.log('WebSocket connected - receiving live events')
         isConnectingRef.current = false
         // Clear any pending reconnection attempts
         if (reconnectTimeoutRef.current) {
@@ -112,7 +112,7 @@ export function useWebSocket() {
                 .catch(console.error)
             }
           } else {
-            console.warn('⚠️ Received message without required fields:', data)
+            console.warn('WARNING: Received message without required fields:', data)
           }
         } catch (error) {
           console.error('❌ Failed to parse WebSocket message:', error, msg.data)
@@ -148,7 +148,7 @@ export function useWebSocket() {
         const status = await apiService.getStatus()
         setStatus(status)
       } catch (error) {
-        console.warn('⚠️ Health check failed:', error.message)
+        console.warn('WARNING: Health check failed:', error.message)
       }
     }, 60000) // Every 60 seconds instead of 30
 

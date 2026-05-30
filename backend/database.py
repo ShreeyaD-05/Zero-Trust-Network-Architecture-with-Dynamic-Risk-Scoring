@@ -149,24 +149,16 @@ def log_event_with_raw_data(event_data: Dict, raw_network_data: Dict = None) -> 
         
         # Generate IDs
         event_id = event_data.get("id", f"evt_{uuid.uuid4().hex[:8]}")
-        raw_data_id = f"raw_{uuid.uuid4().hex[:8]}"
-        
-        # Prepare raw network data
-        if raw_network_data:
-            db_raw_data = {
-                "id": raw_data_id,
-                "event_id": event_id,
-                **raw_network_data,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            
-            # Insert raw data immediately (not buffered)
-            supabase.table("raw_network_data").insert(db_raw_data).execute()
         
         # Check if this is a honeypot user
         is_honeypot = entity.get("is_honeypot", False) if entity else False
         
-        # Prepare event data for database
+        # Prepare event data for database (store raw_network_data in score_breakdown as JSONB)
+        score_breakdown = event_data.get("score_breakdown", {})
+        if raw_network_data:
+            # Include raw network data in score_breakdown for storage
+            score_breakdown["raw_network_data"] = raw_network_data
+        
         db_event = {
             "id": event_id,
             "entity_id": entity_id,
@@ -190,9 +182,8 @@ def log_event_with_raw_data(event_data: Dict, raw_network_data: Dict = None) -> 
             "model_version": event_data.get("model_version"),
             "mlp_score": event_data.get("mlp_score"),
             "risk_level": event_data.get("risk_level"),
-            "score_breakdown": event_data.get("score_breakdown"),
+            "score_breakdown": score_breakdown,
             "is_honeypot_activity": is_honeypot,
-            "raw_data_id": raw_data_id if raw_network_data else None,
             "autonomous_action_taken": False,
             "action_details": None
         }
@@ -378,13 +369,18 @@ def log_entity_action(action_data: Dict) -> bool:
         print(f"ERROR:    Failed to log entity action: {e}")
         return False
 
-def get_entity_actions(entity_id: str, limit: int = 50) -> List[Dict]:
-    """Get action history for an entity"""
+def get_entity_actions(entity_id: str = None, limit: int = 50) -> List[Dict]:
+    """Get action history for an entity, or all actions if entity_id is None"""
     if not supabase:
         return []
     
     try:
-        response = supabase.table("entity_actions").select("*").eq("entity_id", entity_id).order("timestamp", desc=True).limit(limit).execute()
+        query = supabase.table("entity_actions").select("*")
+        
+        if entity_id:
+            query = query.eq("entity_id", entity_id)
+        
+        response = query.order("timestamp", desc=True).limit(limit).execute()
         return response.data
     except Exception as e:
         print(f"ERROR:    Failed to fetch entity actions: {e}")
@@ -522,8 +518,22 @@ def execute_autonomous_action(entity_id: str, event_id: str, action: Dict, event
         autonomous_action_record["execution_status"] = "SUCCESS" if success else "FAILED"
         autonomous_action_record["execution_details"] = {"success": success}
         
-        # Log the action
-        supabase.table("autonomous_actions").insert(autonomous_action_record).execute()
+        # Log the action to entity_actions table (using existing table)
+        action_log = {
+            "id": autonomous_action_record["id"],
+            "entity_id": entity_id,
+            "action_type": action_type,
+            "message": f"Autonomous action: {action_type}",
+            "performed_by": "autonomous_system",
+            "timestamp": autonomous_action_record["executed_at"],
+            "metadata": {
+                "event_id": event_id,
+                "execution_status": "SUCCESS" if success else "FAILED",
+                "execution_details": {"success": success},
+                "action_details": action_details
+            }
+        }
+        supabase.table("entity_actions").insert(action_log).execute()
         
         print(f"INFO:     Autonomous action {action_type} {'executed' if success else 'failed'} for entity {entity_id}")
         return success
@@ -599,22 +609,22 @@ def _execute_isolation(entity_id: str, details: Dict) -> bool:
         success = network_controller.isolate_entity(entity_id, reason)
         
         if success:
-            # Add network restrictions record in database
-            restriction_record = {
+            # Log restriction in entity_actions (using existing table)
+            action_log = {
+                "id": f"action_{uuid.uuid4().hex[:8]}",
                 "entity_id": entity_id,
-                "restriction_type": "SERVICE_DENY",
-                "target": "all_services",
-                "restriction_details": {
+                "action_type": "isolation",
+                "message": f"Entity isolated from network",
+                "performed_by": "autonomous_system",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "metadata": {
+                    "restriction_type": "SERVICE_DENY",
+                    "target": "all_services",
                     "allowed_services": ["dns", "dhcp"] if details.get("allow_basic_services") else [],
                     "reason": reason
-                },
-                "applied_at": datetime.now(timezone.utc).isoformat(),
-                "is_active": True,
-                "applied_by": "system",
-                "reason": "Autonomous isolation"
+                }
             }
-            
-            supabase.table("network_restrictions").insert(restriction_record).execute()
+            supabase.table("entity_actions").insert(action_log).execute()
             print(f"REAL ACTION: Entity {entity_id} ACTUALLY ISOLATED from network")
         
         return success
@@ -636,23 +646,23 @@ def _execute_service_restriction(entity_id: str, details: Dict) -> bool:
             if network_controller.restrict_service(entity_id, service, reason):
                 success_count += 1
                 
-                # Log in database
-                restriction_record = {
+                # Log in entity_actions (using existing table)
+                action_log = {
+                    "id": f"action_{uuid.uuid4().hex[:8]}",
                     "entity_id": entity_id,
-                    "restriction_type": "SERVICE_DENY",
-                    "target": service,
-                    "restriction_details": {
+                    "action_type": "service_restriction",
+                    "message": f"Service {service} restricted",
+                    "performed_by": "autonomous_system",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "metadata": {
+                        "restriction_type": "SERVICE_DENY",
+                        "target": service,
                         "service": service,
-                        "reason": reason
-                    },
-                    "applied_at": datetime.now(timezone.utc).isoformat(),
-                    "expires_at": expires_at.isoformat(),
-                    "is_active": True,
-                    "applied_by": "system",
-                    "reason": "Autonomous service restriction"
+                        "reason": reason,
+                        "expires_at": expires_at.isoformat()
+                    }
                 }
-                
-                supabase.table("network_restrictions").insert(restriction_record).execute()
+                supabase.table("entity_actions").insert(action_log).execute()
         
         if success_count > 0:
             print(f"REAL ACTION: {success_count} services ACTUALLY RESTRICTED for entity {entity_id}")
@@ -668,22 +678,23 @@ def _execute_challenge_requirement(entity_id: str, details: Dict) -> bool:
         duration_hours = details.get("duration_hours", 2)
         expires_at = datetime.now(timezone.utc) + timedelta(hours=duration_hours)
         
-        restriction_record = {
+        # Log challenge requirement in entity_actions (using existing table)
+        action_log = {
+            "id": f"action_{uuid.uuid4().hex[:8]}",
             "entity_id": entity_id,
-            "restriction_type": "CHALLENGE_REQUIRED",
-            "target": "authentication",
-            "restriction_details": {
+            "action_type": "challenge",
+            "message": "Additional authentication required",
+            "performed_by": "autonomous_system",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "metadata": {
+                "restriction_type": "CHALLENGE_REQUIRED",
+                "target": "authentication",
                 "challenge_type": details.get("challenge_type", "MFA"),
-                "reason": "Additional authentication required due to risk"
-            },
-            "applied_at": datetime.now(timezone.utc).isoformat(),
-            "expires_at": expires_at.isoformat(),
-            "is_active": True,
-            "applied_by": "system",
-            "reason": "Autonomous challenge requirement"
+                "reason": "Additional authentication required due to risk",
+                "expires_at": expires_at.isoformat()
+            }
         }
-        
-        supabase.table("network_restrictions").insert(restriction_record).execute()
+        supabase.table("entity_actions").insert(action_log).execute()
         return True
     except Exception as e:
         print(f"ERROR:    Failed to execute challenge requirement: {e}")
@@ -749,12 +760,13 @@ def get_active_ip_blocks() -> List[Dict]:
         return []
 
 def get_active_restrictions() -> List[Dict]:
-    """Get all active network restrictions"""
+    """Get all active network restrictions from entity_actions"""
     if not supabase:
         return []
     
     try:
-        response = supabase.table("network_restrictions").select("*").eq("is_active", True).execute()
+        # Query entity_actions for restriction-type actions
+        response = supabase.table("entity_actions").select("*").in_("action_type", ["isolation", "service_restriction", "challenge"]).order("timestamp", desc=True).limit(100).execute()
         return response.data
     except Exception as e:
         print(f"ERROR:    Failed to fetch active restrictions: {e}")
@@ -773,13 +785,13 @@ def is_ip_blocked(ip_address: str) -> bool:
         return False
 
 def get_autonomous_actions_summary() -> Dict:
-    """Get summary of autonomous actions taken"""
+    """Get summary of autonomous actions taken from entity_actions"""
     if not supabase:
         return {}
     
     try:
-        # Get action counts by type
-        response = supabase.table("autonomous_actions").select("action_type").execute()
+        # Get action counts by type from entity_actions where performed_by is system
+        response = supabase.table("entity_actions").select("action_type").eq("performed_by", "autonomous_system").execute()
         
         action_counts = {}
         for action in response.data:
@@ -787,7 +799,7 @@ def get_autonomous_actions_summary() -> Dict:
             action_counts[action_type] = action_counts.get(action_type, 0) + 1
         
         # Get recent actions
-        recent_response = supabase.table("autonomous_actions").select("*").order("executed_at", desc=True).limit(10).execute()
+        recent_response = supabase.table("entity_actions").select("*").eq("performed_by", "autonomous_system").order("timestamp", desc=True).limit(10).execute()
         
         return {
             "total_actions": len(response.data),

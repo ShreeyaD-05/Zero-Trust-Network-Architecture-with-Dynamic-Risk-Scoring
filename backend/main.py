@@ -17,7 +17,7 @@ from models import load_models, predict, get_model_performance_stats, get_risk_l
 from simulator import generate_event
 from entities import get_all_entities, get_entity_by_id, initialize_entities, is_using_supabase
 from database import (
-    log_event_with_raw_data, flush_event_buffer, get_buffer_status, get_event_statistics,
+    init_supabase, log_event_with_raw_data, flush_event_buffer, get_buffer_status, get_event_statistics,
     update_entity_status, log_entity_action, get_entity_actions as db_get_entity_actions,
     get_honeypot_entities, get_blocked_entities, get_honeypot_activities,
     get_events_with_raw_data, get_entity_security_context, get_active_ip_blocks,
@@ -89,15 +89,20 @@ def log_entity_action_memory(entity_id, entity_name, action_type, risk_score_tri
     # Also store in database if using Supabase
     if is_using_supabase():
         try:
-            log_entity_action(
-                entity_id=entity_id,
-                entity_name=entity_name,
-                action_type=action_type,
-                risk_score_trigger=risk_score_trigger,
-                execution_status=execution_status,
-                action_details=action_details,
-                confidence_level=confidence_level
-            )
+            log_entity_action({
+                "id": action_entry["id"],
+                "entity_id": entity_id,
+                "action_type": action_type,
+                "message": f"Risk score: {risk_score_trigger}%, Status: {execution_status}",
+                "performed_by": "autonomous_system",
+                "timestamp": action_entry["executed_at"],
+                "metadata": {
+                    "risk_score_trigger": risk_score_trigger,
+                    "execution_status": execution_status,
+                    "action_details": action_details or {},
+                    "confidence_level": confidence_level
+                }
+            })
         except Exception as e:
             print(f"Failed to log action to database: {e}")
     
@@ -515,6 +520,7 @@ async def perform_automated_cleanup():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("INFO:     EquiMind Zero Trust Risk Engine starting...")
+    init_supabase()  # Initialize Supabase connection
     initialize_entities()
     load_models()
     
@@ -1210,27 +1216,43 @@ async def get_autonomous_actions(limit: int = 100, offset: int = 0):
             # Get actions from database
             db_actions = db_get_entity_actions(None, limit + offset)  # Get more to handle offset
             if db_actions:
+                # Convert database format to expected format
+                converted_actions = []
+                for action in db_actions:
+                    converted_action = {
+                        "id": action.get("id"),
+                        "entity_id": action.get("entity_id"),
+                        "entity_name": action.get("entity_id"),  # Will be resolved later
+                        "action_type": action.get("action_type"),
+                        "risk_score_trigger": action.get("metadata", {}).get("risk_score_trigger"),
+                        "execution_status": action.get("metadata", {}).get("execution_status", "SUCCESS"),
+                        "executed_at": action.get("timestamp"),
+                        "action_details": action.get("metadata", {}).get("action_details", {}),
+                        "confidence_level": action.get("metadata", {}).get("confidence_level")
+                    }
+                    converted_actions.append(converted_action)
+                
                 # Apply offset and limit
-                actions = db_actions[offset:offset + limit] if offset < len(db_actions) else []
+                actions = converted_actions[offset:offset + limit] if offset < len(converted_actions) else []
                 
                 # Calculate stats
-                stats["total_actions"] = len(db_actions)
+                stats["total_actions"] = len(converted_actions)
                 
                 # Actions in last 24 hours
                 now = datetime.now(timezone.utc)
                 day_ago = now - timedelta(hours=24)
                 stats["actions_24h"] = len([
-                    a for a in db_actions 
+                    a for a in converted_actions 
                     if datetime.fromisoformat(a["executed_at"].replace('Z', '+00:00')) >= day_ago
                 ])
                 
                 # Success rate
-                successful_actions = len([a for a in db_actions if a.get("execution_status") == "SUCCESS"])
-                stats["success_rate"] = round((successful_actions / len(db_actions)) * 100) if db_actions else 0
+                successful_actions = len([a for a in converted_actions if a.get("execution_status") == "SUCCESS"])
+                stats["success_rate"] = round((successful_actions / len(converted_actions)) * 100) if converted_actions else 0
                 
                 # Active blocks (approximate)
                 stats["active_blocks"] = len([
-                    a for a in db_actions 
+                    a for a in converted_actions 
                     if a.get("action_type") == "BLOCK" and a.get("execution_status") == "SUCCESS"
                 ])
         

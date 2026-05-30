@@ -172,7 +172,7 @@ export function ActionPanel() {
             {monitoredEntities.length > 0 && (
               <div style={{ marginBottom: '8px' }}>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: 'var(--cyan)', marginBottom: '4px' }}>
-                  👁️ UNDER MONITORING ({monitoredEntities.length})
+                  UNDER MONITORING ({monitoredEntities.length})
                 </div>
                 {monitoredEntities.slice(0, 3).map(entity => (
                   <div key={entity.id} style={{
@@ -193,7 +193,7 @@ export function ActionPanel() {
             {honeypottedEntities.length > 0 && (
               <div style={{ marginBottom: '8px' }}>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: 'var(--amber)', marginBottom: '4px' }}>
-                  🍯 IN HONEYPOT ({honeypottedEntities.length})
+                  IN HONEYPOT ({honeypottedEntities.length})
                 </div>
                 {honeypottedEntities.slice(0, 3).map(entity => (
                   <div key={entity.id} style={{
@@ -226,7 +226,7 @@ export function ActionPanel() {
               alignItems: 'center',
               gap: '6px'
             }}>
-              🚨 CRITICAL THREATS ({criticalEntities.length})
+              CRITICAL THREATS ({criticalEntities.length})
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {criticalEntities.slice(0, 3).map(entity => (
@@ -274,7 +274,7 @@ export function ActionPanel() {
                       color: 'var(--amber)',
                       textAlign: 'center'
                     }}>
-                      🍯 IN HONEYPOT
+                      IN HONEYPOT
                     </div>
                   ) : (
                     <div style={{ display: 'flex', gap: '6px' }}>
@@ -282,13 +282,13 @@ export function ActionPanel() {
                         onClick={() => executeAction(entity.id, 'honeypot')}
                         color="var(--amber)"
                       >
-                        🍯 HONEYPOT
+                        HONEYPOT
                       </ActionButton>
                       <ActionButton
                         onClick={() => executeAction(entity.id, 'monitor')}
                         color="var(--cyan)"
                       >
-                        👁️ MONITOR
+                        MONITOR
                       </ActionButton>
                     </div>
                   )}
@@ -308,7 +308,7 @@ export function ActionPanel() {
               marginBottom: '8px',
               letterSpacing: '1px'
             }}>
-              ⚠️ HIGH RISK ({highRiskEntities.length})
+              HIGH RISK ({highRiskEntities.length})
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {highRiskEntities.slice(0, 5).map(entity => (

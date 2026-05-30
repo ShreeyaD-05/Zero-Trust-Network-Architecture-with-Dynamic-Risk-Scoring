@@ -10,6 +10,8 @@ export function Monitoring() {
   const [monitoredEntities, setMonitoredEntities] = useState([])
   const [systemStatus, setSystemStatus] = useState(null)
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [autonomousActions, setAutonomousActions] = useState([])
+  const [autonomousStats, setAutonomousStats] = useState(null)
   const events = useSentinel(s => s.events)
 
   useEffect(() => {
@@ -22,9 +24,11 @@ export function Monitoring() {
   useEffect(() => {
     checkServices()
     fetchMonitoredEntities()
+    fetchAutonomousActions()
     const interval = setInterval(() => {
       checkServices()
       fetchMonitoredEntities()
+      fetchAutonomousActions()
     }, 9000) // Update every 9 seconds for monitoring graphs
     return () => clearInterval(interval)
   }, [])
@@ -41,11 +45,23 @@ export function Monitoring() {
       setMonitoredEntities(monitored)
 
       // Fetch system status
-      const statusResponse = await fetch('http://localhost:8000/system/status')
+      const statusResponse = await fetch('http://localhost:8000/status')
       const status = await statusResponse.json()
       setSystemStatus(status)
     } catch (error) {
       console.error('Failed to fetch monitored entities:', error)
+    }
+  }
+
+  const fetchAutonomousActions = async () => {
+    try {
+      // Fetch recent autonomous actions
+      const response = await fetch('http://localhost:8000/autonomous/actions?limit=10')
+      const data = await response.json()
+      setAutonomousActions(data.actions || [])
+      setAutonomousStats(data.stats || {})
+    } catch (error) {
+      console.error('Failed to fetch autonomous actions:', error)
     }
   }
 
@@ -162,6 +178,28 @@ export function Monitoring() {
     </div>
   )
 
+  const getActionIcon = (actionType) => {
+    switch (actionType) {
+      case 'HONEYPOT_MOVE': return '🎯'
+      case 'ISOLATION': return '🔒'
+      case 'BLOCK': return '🚫'
+      case 'MONITOR': return '👁️'
+      case 'CHALLENGE': return '🛡️'
+      default: return '⚡'
+    }
+  }
+
+  const getActionColor = (actionType) => {
+    switch (actionType) {
+      case 'HONEYPOT_MOVE': return 'var(--amber)'
+      case 'ISOLATION': return 'var(--red)'
+      case 'BLOCK': return 'var(--red)'
+      case 'MONITOR': return 'var(--cyan)'
+      case 'CHALLENGE': return 'var(--amber)'
+      default: return 'var(--text-dim)'
+    }
+  }
+
   return (
     <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', overflowY: 'auto' }}>
       
@@ -193,7 +231,7 @@ export function Monitoring() {
 
       {/* Metrics Overview */}
       <Panel title="METRICS OVERVIEW">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
           <MetricCard 
             label="TOTAL EVENTS" 
             value={metricsData?.totalEvents || events.length} 
@@ -213,6 +251,16 @@ export function Monitoring() {
             label="BLOCKED EVENTS" 
             value={events.filter(e => e.decision === 'BLOCK').length} 
             color="var(--red)"
+          />
+          <MetricCard 
+            label="AUTONOMOUS ACTIONS" 
+            value={autonomousStats?.total_actions || autonomousActions.length} 
+            color="var(--purple)"
+          />
+          <MetricCard 
+            label="ACTIONS (24H)" 
+            value={autonomousStats?.actions_24h || 0} 
+            color="var(--amber)"
           />
         </div>
       </Panel>
@@ -325,7 +373,7 @@ export function Monitoring() {
                       <div style={{ fontFamily: 'var(--font-mono)', fontSize: '8px', color: 'var(--text-dim)', marginBottom: '4px' }}>
                         RECENT ACTIVITY:
                       </div>
-                      {entityEvents.map((event, index) => (
+                      {entityEvents.map((event) => (
                         <div key={event.id} style={{
                           fontFamily: 'var(--font-mono)',
                           fontSize: '8px',
@@ -373,6 +421,74 @@ export function Monitoring() {
         )}
       </Panel>
 
+      {/* Recent Autonomous Actions */}
+      <Panel title="RECENT AUTONOMOUS ACTIONS">
+        <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--text-secondary)' }}>
+            Latest security actions taken automatically by the system
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Shield size={12} color="var(--purple)" />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: 'var(--purple)' }}>
+                {autonomousStats?.total_actions || autonomousActions.length} TOTAL
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Activity size={12} color="var(--amber)" />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: 'var(--amber)' }}>
+                {autonomousStats?.actions_24h || 0} TODAY
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {autonomousActions.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+            {autonomousActions.slice(0, 5).map((action) => (
+              <div key={action.id} style={{
+                padding: '8px',
+                background: 'var(--bg-elevated)',
+                borderRadius: '4px',
+                borderLeft: `3px solid ${getActionColor(action.action_type)}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--text-primary)', fontWeight: 600 }}>
+                    {getActionIcon(action.action_type)} {action.action_type.replace(/_/g, ' ')}
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '9px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    Entity: {action.entity_name || action.entity_id} • Risk: {action.risk_score_trigger}%
+                  </div>
+                </div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '8px', color: 'var(--text-dim)' }}>
+                  {new Date(action.executed_at).toLocaleTimeString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '40px 20px',
+            color: 'var(--text-dim)',
+            background: 'var(--bg-elevated)',
+            borderRadius: '6px',
+            border: '1px dashed var(--border-base)'
+          }}>
+            <Shield size={24} color="var(--text-dim)" style={{ marginBottom: '8px' }} />
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', marginBottom: '4px' }}>
+              No autonomous actions recorded
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '9px' }}>
+              Actions will appear here as the system responds to threats
+            </div>
+          </div>
+        )}
+      </Panel>
+
       {/* Grafana Dashboards */}
       {grafanaStatus === 'online' ? (
         <Panel title="GRAFANA DASHBOARDS" style={{ flex: 1, minHeight: '600px' }}>
@@ -404,8 +520,7 @@ export function Monitoring() {
                 src="http://localhost:3001/d-solo/equimind/equimind-dashboard?orgId=1&theme=dark&panelId=1"
                 width="100%"
                 height="300"
-                frameBorder="0"
-                style={{ background: '#000' }}
+                style={{ border: 'none', background: '#000' }}
               />
             </div>
 
@@ -431,8 +546,7 @@ export function Monitoring() {
                 src="http://localhost:3001/d-solo/equimind/equimind-dashboard?orgId=1&theme=dark&panelId=2"
                 width="100%"
                 height="300"
-                frameBorder="0"
-                style={{ background: '#000' }}
+                style={{ border: 'none', background: '#000' }}
               />
             </div>
 
@@ -458,8 +572,7 @@ export function Monitoring() {
                 src="http://localhost:3001/d-solo/equimind/equimind-dashboard?orgId=1&theme=dark&panelId=3"
                 width="100%"
                 height="300"
-                frameBorder="0"
-                style={{ background: '#000' }}
+                style={{ border: 'none', background: '#000' }}
               />
             </div>
 
@@ -485,8 +598,7 @@ export function Monitoring() {
                 src="http://localhost:3001/d-solo/equimind/equimind-dashboard?orgId=1&theme=dark&panelId=4"
                 width="100%"
                 height="300"
-                frameBorder="0"
-                style={{ background: '#000' }}
+                style={{ border: 'none', background: '#000' }}
               />
             </div>
           </div>
@@ -506,7 +618,7 @@ export function Monitoring() {
               color: 'var(--text-dim)',
               marginBottom: '16px',
             }}>
-              ⚠
+              WARNING
             </div>
             <div style={{
               fontFamily: 'var(--font-mono)',

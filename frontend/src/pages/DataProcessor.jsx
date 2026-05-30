@@ -259,7 +259,7 @@ export function DataProcessor() {
             fontSize: '11px',
             color: 'var(--red)',
           }}>
-            ⚠ {error}
+            ERROR: {error}
           </div>
         )}
 

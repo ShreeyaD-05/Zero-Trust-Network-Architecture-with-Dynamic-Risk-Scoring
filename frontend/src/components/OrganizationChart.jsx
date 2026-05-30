@@ -378,7 +378,7 @@ export function OrganizationChart() {
                   color: 'var(--amber)',
                   fontWeight: 600
                 }}>
-                  🍯 HONEYPOT ACTIVE
+                  HONEYPOT ACTIVE
                 </div>
               )}
               

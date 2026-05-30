@@ -14,7 +14,7 @@ export const useSentinel = create((set, get) => ({
     // Check for duplicate events by ID to prevent React key conflicts
     const existingEventIds = new Set(state.events.map(e => e.id))
     if (existingEventIds.has(event.id)) {
-      console.warn(`⚠️ Duplicate event detected: ${event.id}`)
+      console.warn(`WARNING: Duplicate event detected: ${event.id}`)
       return state // Don't add duplicate
     }
     
@@ -34,7 +34,7 @@ export const useSentinel = create((set, get) => ({
       return entity
     })
     
-    console.log(`✅ Added new event: ${event.id} (${event.severity})`)
+    console.log(`Added new event: ${event.id} (${event.severity})`)
     
     return { 
       events, 

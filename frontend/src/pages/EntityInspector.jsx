@@ -3,7 +3,7 @@ import { useSentinel } from '../store/sentinel'
 import { Panel } from '../components/ui/Panel'
 import { DecisionPill } from '../components/ui/DecisionPill'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts'
-import { Shield, Ban, AlertTriangle, Eye, Lock, Unlock } from 'lucide-react'
+import { Shield, AlertTriangle, Eye, Lock } from 'lucide-react'
 
 export function EntityInspector() {
   const entities = useSentinel(s => s.entities)
@@ -44,7 +44,6 @@ export function EntityInspector() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'blocked': return 'var(--red)'
       case 'isolated': return 'var(--red)'
       case 'honeypot': return 'var(--red)'
       case 'monitored': return 'var(--amber)'
@@ -55,7 +54,6 @@ export function EntityInspector() {
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'blocked': return <Ban size={16} />
       case 'isolated': return <Lock size={16} />
       case 'honeypot': return <AlertTriangle size={16} />
       case 'monitored': return <Eye size={16} />
@@ -82,11 +80,6 @@ export function EntityInspector() {
             { 
               label: 'HIGH RISK', 
               value: displayEntities.filter(e => (e.risk_score || 0) >= 65).length, 
-              color: 'var(--red)' 
-            },
-            { 
-              label: 'BLOCKED/ISOLATED', 
-              value: displayEntities.filter(e => ['blocked', 'isolated'].includes(e.status)).length, 
               color: 'var(--red)' 
             },
             { 
@@ -304,31 +297,33 @@ export function EntityInspector() {
                   <div style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--text-dim)' }}>
                     {entity.role} · {entity.dept}
                   </div>
-                  {/* Real Security Status */}
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '6px', 
-                    marginTop: '4px',
-                    padding: '4px 8px',
-                    background: getStatusColor(entity.status) + '20',
-                    borderRadius: '4px',
-                    border: `1px solid ${getStatusColor(entity.status)}`
-                  }}>
-                    <div style={{ color: getStatusColor(entity.status) }}>
-                      {getStatusIcon(entity.status)}
-                    </div>
-                    <span style={{ 
-                      fontFamily: 'var(--font-mono)', 
-                      fontSize: '9px', 
-                      color: getStatusColor(entity.status),
-                      fontWeight: 600,
-                      letterSpacing: '1px'
+                  {/* Real Security Status - Hide blocked status */}
+                  {entity.status !== 'blocked' && (
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '6px', 
+                      marginTop: '4px',
+                      padding: '4px 8px',
+                      background: getStatusColor(entity.status) + '20',
+                      borderRadius: '4px',
+                      border: `1px solid ${getStatusColor(entity.status)}`
                     }}>
-                      {(entity.status || 'active').toUpperCase()}
-                      {entity.is_honeypot && ' (HONEYPOT)'}
-                    </span>
-                  </div>
+                      <div style={{ color: getStatusColor(entity.status) }}>
+                        {getStatusIcon(entity.status)}
+                      </div>
+                      <span style={{ 
+                        fontFamily: 'var(--font-mono)', 
+                        fontSize: '9px', 
+                        color: getStatusColor(entity.status),
+                        fontWeight: 600,
+                        letterSpacing: '1px'
+                      }}>
+                        {(entity.status || 'active').toUpperCase()}
+                        {entity.is_honeypot && ' (HONEYPOT)'}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color }}>

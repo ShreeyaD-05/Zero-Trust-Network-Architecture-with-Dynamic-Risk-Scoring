@@ -69,14 +69,14 @@ export function PolicyEngine() {
 
   const getActionIcon = (action) => {
     const icons = {
-      'BLOCK': '🚫',
-      'ISOLATION': '🔒',
-      'HONEYPOT_MOVE': '🍯',
-      'CHALLENGE': '⚠️',
-      'MONITOR': '👁️',
-      'ALLOW': '✅'
+      'BLOCK': 'BLOCK',
+      'ISOLATION': 'ISOLATE',
+      'HONEYPOT_MOVE': 'HONEYPOT',
+      'CHALLENGE': 'CHALLENGE',
+      'MONITOR': 'MONITOR',
+      'ALLOW': 'ALLOW'
     }
-    return icons[action] || '⚡'
+    return icons[action] || 'ACTION'
   }
 
   const getActionColor = (action) => {
