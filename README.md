@@ -277,10 +277,3 @@ MODEL_PATH=models/              # ML model directory
 EVENT_INTERVAL_SECONDS=3        # Event generation interval
 ```
 
-## License
-
-MIT License - See LICENSE file for details
-
-## Team
-
-GHR HACK 2.0 Submission
